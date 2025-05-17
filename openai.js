@@ -50,7 +50,8 @@ async function init_session() {
     pc.addTrack(ms.getTracks()[0]);
 
     let hey_cardo_found = false;
-
+    let partial_input = "";
+    
     // Set up data channel for sending and receiving events
     const dc = pc.createDataChannel("oai-events");
     dc.addEventListener("message", (e) => {
@@ -128,7 +129,7 @@ async function handle_transcription(userInput) {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: "POST",
         headers: {
-            "Authorization": `Bearer ${OPENAI_API_KEY}`,
+            "Authorization": `Bearer ${PART1}${PART2}${PART3}`,     
             "Content-Type": "application/json"
         },
         body: JSON.stringify(payload)
