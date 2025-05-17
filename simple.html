@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Voice Transcription Demo (Simple)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            background: #222;
+            min-height: 100vh;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            color: #fff;
+        }
+
+        #container {
+            width: 100vw;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 0;
+            box-sizing: border-box;
+            color: #fff;
+        }
+
+        #top-section {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            height: 33vh;
+            min-height: 200px;
+            margin-bottom: 0;
+        }
+
+        #main-title {
+            margin-bottom: 2em;
+            font-size: 2.7em;
+            text-align: center;
+            color: #fff;
+        }
+
+        #cardo-icon {
+            width: 260px;
+            height: auto;
+            margin: 0 auto 1em auto;
+            display: block;
+        }
+
+        #middle-section {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1 0 auto;
+            min-height: 0;
+            height: 67vh;
+            /* Take up remaining vertical space */
+        }
+
+        #status-icon {
+            width: 140px;
+            height: 140px;
+            margin: 0 auto 1em auto;
+            display: block;
+        }
+
+        #status-message {
+            min-height: 1.5em;
+            text-align: center;
+            font-size: 2em;
+            color: #fff;
+            margin-bottom: 1em;
+            /* Always reserve space */
+            visibility: hidden;
+        }
+
+        @media (max-width: 600px) {
+            #container {
+                padding: 0;
+            }
+
+            #main-title {
+                font-size: 1.4em;
+            }
+
+            #cardo-icon {
+                width: 170px;
+                height: auto;
+            }
+
+            #status-icon {
+                width: 90px;
+                height: 90px;
+            }
+
+            #top-section {
+                min-height: 120px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <div id="top-section">
+            <img id="cardo-icon" src="cardo_logo.avif" alt="Cardo Icon">
+            <h1 id="main-title">Free ASR Demo</h1>
+        </div>
+        <div id="middle-section">
+            <img id="status-icon" src="mic.png" alt="Status Icon">
+            <div id="status-message"></div>
+        </div>
+    </div>
+    <script src="utils.js"></script>
+    <script src="prompt.js"></script>
+    <script src="openai.js"></script>
+    <script>
+        // --- DOM Elements ---
+        const mainTitle = document.getElementById('main-title');
+        const cardoIcon = document.getElementById('cardo-icon');
+        const statusIcon = document.getElementById('status-icon');
+        const statusMessage = document.getElementById('status-message');
+
+
+        // Function to change state and update status icon
+        function setListeningState() {
+            statusIcon.src = 'mic.png';
+            statusIcon.alt = 'Listening';
+        }
+        // Function to change state and update status icon
+        function setCommandState() {
+            statusIcon.src = 'check.png';
+            statusIcon.alt = 'Command';
+        }
+
+        // Function to show/hide a message below the status icon
+        function showStatusMessage(msg) {
+            if (msg && msg.length > 0) {
+                statusMessage.textContent = msg;
+                statusMessage.style.visibility = 'visible';
+            } else {
+                statusMessage.textContent = '';
+                statusMessage.style.visibility = 'hidden';
+            }
+        }
+
+        // --- Cleanup on unload ---
+        window.addEventListener('beforeunload', () => {
+            close_session();
+        });
+
+        // --- Start on load ---
+        window.addEventListener('DOMContentLoaded', () => {
+            init_session();
+            setListeningState();
+            showStatusMessage();
+        });
+    </script>
+</body>
+
+</html>
