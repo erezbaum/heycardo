@@ -51,7 +51,7 @@ async function init_session() {
 
     let hey_cardo_found = false;
     let partial_input = "";
-    
+
     // Set up data channel for sending and receiving events
     const dc = pc.createDataChannel("oai-events");
     dc.addEventListener("message", (e) => {
@@ -59,7 +59,7 @@ async function init_session() {
         const data = JSON.parse(e.data);
         switch (data.type) {
             case "conversation.item.input_audio_transcription.delta":
-                console.log(`Partial: ${partial_input}`);
+//             console.log(`Partial: ${partial_input}`);
                 if (!hey_cardo_found) {
                     if (!partial_input) {
                         setListeningState();
@@ -74,7 +74,7 @@ async function init_session() {
                 }
                 break
             case "conversation.item.input_audio_transcription.completed":
-                console.log(`Completed: ${data.transcript}`);
+//                console.log(`Completed: ${data.transcript}`);
                 handle_transcription(data.transcript);
                 partial_input = ""; // Reset partial input
                 hey_cardo_found = false; // Reset the flag for the next session
@@ -83,7 +83,7 @@ async function init_session() {
                 init_beep();
                 break;
             default:
-                console.log("Unknown event type:", data.type);
+//                console.log("Unknown event type:", data.type);
         }
     });
 
@@ -153,7 +153,7 @@ async function handle_transcription(userInput) {
         setCommandState();
     }
 
-    console.log(jsonResponse);
+    // console.log(jsonResponse);
 
 }
 
