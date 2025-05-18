@@ -109,6 +109,23 @@
                 min-height: 120px;
             }
         }
+
+        /* Off button styles */
+        #off-btn {
+            position: fixed;
+            bottom: 24px;
+            left: 24px;
+            z-index: 1000;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        #off-btn img {
+            width: 48px;
+            height: 48px;
+        }
     </style>
 </head>
 
@@ -123,6 +140,11 @@
             <div id="status-message"></div>
         </div>
     </div>
+    <!-- Off button at bottom left -->
+    <button id="off-btn" title="Turn Off" style="position:fixed;bottom:24px;left:24px;z-index:1000;background:transparent;border:none;cursor:pointer;padding:0;">
+        <img src="power_off.png" alt="Off" style="width:48px;height:48px;">
+    </button>
+    <audio id="audioPlayer" controls></audio>
     <script src="utils.js"></script>
     <script src="prompt.js"></script>
     <script src="openai.js"></script>
@@ -138,6 +160,13 @@
         function setListeningState() {
             statusIcon.src = 'mic.png';
             statusIcon.alt = 'Listening';
+        }
+        function setMuteState() {
+            statusIcon.src = 'mute.png';
+            statusIcon.alt = 'Not Listening';
+            // Hide the power off button
+            const offBtn = document.getElementById('off-btn');
+            if (offBtn) offBtn.style.display = 'none';
         }
         // Function to change state and update status icon
         function setCommandState() {
@@ -155,6 +184,11 @@
                 statusMessage.style.visibility = 'hidden';
             }
         }
+
+        // --- Off button handler ---
+        document.getElementById('off-btn').addEventListener('click', () => {
+            close_session();
+        });
 
         // --- Cleanup on unload ---
         window.addEventListener('beforeunload', () => {

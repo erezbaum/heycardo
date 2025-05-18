@@ -1,5 +1,7 @@
-
 let pc = null;
+let ms = null; // Store MediaStream globally
+let inactivityTimeout = null; // Track inactivity timeout
+const INACTIVITY_DURATION = 1 * 60 * 1000; // 5 minutes in ms
 const PART1 = "sk-proj-fqQp-r7m6i4mMZ4UulhvpxcOdC4VnACF91Y-o_ECpgsYwM2tqJE3coSAB9hzlh";
 const PART2 = "4fnoCozV_TvQT3BlbkFJFF-LQOm2Z2yGyIuq2mqgLHeGg-fnokefZYfnJFAJwBD1MBkoXLAD";
 const PART3 = "JPeup3C1-Xwag6iNdUbN8A"
@@ -41,10 +43,10 @@ async function init_session() {
     const EPHEMERAL_KEY = sessionData.client_secret.value;
 
     // Create a peer connection
-    const pc = new RTCPeerConnection();
+    pc = new RTCPeerConnection();
 
     // Add local audio track for microphone input in the browser
-    const ms = await navigator.mediaDevices.getUserMedia({
+    ms = await navigator.mediaDevices.getUserMedia({
         audio: true
     });
     pc.addTrack(ms.getTracks()[0]);
@@ -78,6 +80,11 @@ async function init_session() {
                 handle_transcription(data.transcript);
                 partial_input = ""; // Reset partial input
                 hey_cardo_found = false; // Reset the flag for the next session
+                // Reset inactivity timeout
+                if (inactivityTimeout) clearTimeout(inactivityTimeout);
+                inactivityTimeout = setTimeout(() => {
+                    close_session();
+                }, INACTIVITY_DURATION);
                 break;
             case "transcription_session.created":
                 init_beep();
@@ -110,6 +117,15 @@ function close_session() {
         pc.close();
         pc = null;
     }
+    if (ms) {
+        ms.getTracks().forEach(track => track.stop());
+        ms = null;
+    }
+    if (inactivityTimeout) {
+        clearTimeout(inactivityTimeout);
+        inactivityTimeout = null;
+    }
+    setMuteState();
 }
 
 async function handle_transcription(userInput) {
