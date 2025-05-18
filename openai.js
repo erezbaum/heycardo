@@ -56,12 +56,12 @@ async function init_session() {
 
     // Set up data channel for sending and receiving events
     const dc = pc.createDataChannel("oai-events");
-    dc.addEventListener("message", (e) => {
+    dc.addEventListener("message", async (e) => {
         // Realtime server events appear here!
         const data = JSON.parse(e.data);
         switch (data.type) {
             case "conversation.item.input_audio_transcription.delta":
-//             console.log(`Partial: ${partial_input}`);
+                //             console.log(`Partial: ${partial_input}`);
                 if (!hey_cardo_found) {
                     if (!partial_input) {
                         setListeningState();
@@ -76,8 +76,10 @@ async function init_session() {
                 }
                 break
             case "conversation.item.input_audio_transcription.completed":
-//                console.log(`Completed: ${data.transcript}`);
-                handle_transcription(data.transcript);
+                //                console.log(`Completed: ${data.transcript}`);
+                startTimer("openai");
+                await handle_transcription_text(data.transcript);
+                stopTimer("openai");
                 partial_input = ""; // Reset partial input
                 hey_cardo_found = false; // Reset the flag for the next session
                 // Reset inactivity timeout
@@ -90,7 +92,7 @@ async function init_session() {
                 init_beep();
                 break;
             default:
-//                console.log("Unknown event type:", data.type);
+            //                console.log("Unknown event type:", data.type);
         }
     });
 
@@ -128,13 +130,13 @@ function close_session() {
     setMuteState();
 }
 
-async function handle_transcription(userInput) {
+async function handle_transcription_text(userInput) {
     if (!startsWithCardoGreeting(userInput)) {
         console.log("No greeting found, ignoring input.");
         return;
     }
     const payload = {
-        model: "gpt-4o",
+        model: "gpt-4.1-nano",
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userInput }
@@ -145,7 +147,7 @@ async function handle_transcription(userInput) {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: "POST",
         headers: {
-            "Authorization": `Bearer ${PART1}${PART2}${PART3}`,     
+            "Authorization": `Bearer ${PART1}${PART2}${PART3}`,
             "Content-Type": "application/json"
         },
         body: JSON.stringify(payload)
@@ -156,6 +158,7 @@ async function handle_transcription(userInput) {
     }
 
     const data = await response.json();
+
     let jsonResponse;
     try {
         jsonResponse = JSON.parse(data.choices[0].message.content);
@@ -173,5 +176,57 @@ async function handle_transcription(userInput) {
 
 }
 
+
+async function handle_transcription_audio(userInput) {
+    if (!startsWithCardoGreeting(userInput)) {
+        console.log("No greeting found, ignoring input.");
+        return;
+    }
+    const payload = {
+        model: "gpt-4o-audio-preview",
+        modalities: ["text", "audio"],
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userInput }
+        ],
+        audio: { voice: "alloy", format: "mp3" }
+    };
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${PART1}${PART2}${PART3}`,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const textResponse = result.choices[0].message.audio.transcript;
+    console.log("Text response:", textResponse);
+
+    let jsonResponse;
+    try {
+        jsonResponse = JSON.parse(textResponse);
+    } catch (e) {
+        jsonResponse = { command: null }; // fallback
+    }
+
+    if (jsonResponse.command) {
+        playBigBeep();
+        showStatusMessage(jsonResponse.command);
+    } else {
+        const audioBase64 = result.choices[0].message.audio.data;
+        const audioBlob = new Blob([Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0))], { type: 'audio/mpeg' });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        playAudio(audioUrl);
+    }
+    setCommandState();
+
+}
 
 

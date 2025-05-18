@@ -144,7 +144,7 @@
     <button id="off-btn" title="Turn Off" style="position:fixed;bottom:24px;left:24px;z-index:1000;background:transparent;border:none;cursor:pointer;padding:0;">
         <img src="power_off.png" alt="Off" style="width:48px;height:48px;">
     </button>
-    <audio id="audioPlayer" controls></audio>
+    <audio id="audio-player"></audio>
     <script src="utils.js"></script>
     <script src="prompt.js"></script>
     <script src="openai.js"></script>
@@ -154,6 +154,7 @@
         const cardoIcon = document.getElementById('cardo-icon');
         const statusIcon = document.getElementById('status-icon');
         const statusMessage = document.getElementById('status-message');
+        const audioPlayer = document.getElementById('audio-player');
 
 
         // Function to change state and update status icon
@@ -173,6 +174,11 @@
             statusIcon.src = 'check.png';
             statusIcon.alt = 'Command';
         }
+
+        function playAudio (audioUrl) {
+            audioPlayer.src = audioUrl;
+            audioPlayer.play();
+        };
 
         // Function to show/hide a message below the status icon
         function showStatusMessage(msg) {
