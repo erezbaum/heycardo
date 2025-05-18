@@ -14,6 +14,8 @@ function startsWithCardoGreeting(str) {
 
 async function init_session() {
 
+    document.addEventListener('first-user-input', HandleFirstUserInput)
+
     const sessionResponse = await fetch("https://api.openai.com/v1/realtime/transcription_sessions", {
         method: "POST",
         body: JSON.stringify({
@@ -61,7 +63,6 @@ async function init_session() {
         const data = JSON.parse(e.data);
         switch (data.type) {
             case "conversation.item.input_audio_transcription.delta":
-                //             console.log(`Partial: ${partial_input}`);
                 if (!hey_cardo_found) {
                     if (!partial_input) {
                         setListeningState();
@@ -76,17 +77,11 @@ async function init_session() {
                 }
                 break
             case "conversation.item.input_audio_transcription.completed":
-                //                console.log(`Completed: ${data.transcript}`);
-                startTimer("openai");
-                await handle_transcription_text(data.transcript);
-                stopTimer("openai");
+                document.dispatchEvent(new CustomEvent('first-user-input', { detail: data.transcript }));
                 partial_input = ""; // Reset partial input
                 hey_cardo_found = false; // Reset the flag for the next session
-                // Reset inactivity timeout
                 if (inactivityTimeout) clearTimeout(inactivityTimeout);
-                inactivityTimeout = setTimeout(() => {
-                    close_session();
-                }, INACTIVITY_DURATION);
+                inactivityTimeout = setTimeout(close_session, INACTIVITY_DURATION);
                 break;
             case "transcription_session.created":
                 init_beep();
@@ -130,7 +125,7 @@ function close_session() {
     setMuteState();
 }
 
-async function handle_transcription_text(userInput) {
+async function parseCommand(userInput) {
     if (!startsWithCardoGreeting(userInput)) {
         console.log("No greeting found, ignoring input.");
         return;
@@ -166,22 +161,12 @@ async function handle_transcription_text(userInput) {
         jsonResponse = { command: null }; // fallback
     }
 
-    if (jsonResponse.command) {
-        showStatusMessage(jsonResponse.command);
-        setCommandState();
-        playBigBeep();
-    }
-
-    // console.log(jsonResponse);
+    return jsonResponse.command;
 
 }
 
 
-async function handle_transcription_audio(userInput) {
-    if (!startsWithCardoGreeting(userInput)) {
-        console.log("No greeting found, ignoring input.");
-        return;
-    }
+async function askFollowupQuestion(userInput) {
     const payload = {
         model: "gpt-4o-audio-preview",
         modalities: ["text", "audio"],
@@ -206,27 +191,28 @@ async function handle_transcription_audio(userInput) {
     }
 
     const result = await response.json();
-    const textResponse = result.choices[0].message.audio.transcript;
-    console.log("Text response:", textResponse);
-
-    let jsonResponse;
-    try {
-        jsonResponse = JSON.parse(textResponse);
-    } catch (e) {
-        jsonResponse = { command: null }; // fallback
-    }
-
-    if (jsonResponse.command) {
-        playBigBeep();
-        showStatusMessage(jsonResponse.command);
-    } else {
-        const audioBase64 = result.choices[0].message.audio.data;
-        const audioBlob = new Blob([Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0))], { type: 'audio/mpeg' });
-        const audioUrl = URL.createObjectURL(audioBlob);
-        playAudio(audioUrl);
-    }
-    setCommandState();
-
+    const questionText = result.choices[0].message.audio.transcript;
+    console.log("Question Text", textResponse);
+    const audioBase64 = result.choices[0].message.audio.data;
+    const audioBlob = new Blob([Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0))], { type: 'audio/mpeg' });
+    const audioUrl = URL.createObjectURL(audioBlob);
+    playAudio(audioUrl);
 }
 
+function runCommand(command) {
+    showStatusMessage(command);
+    setCommandState();
+    playBigBeep();
+}
 
+async function HandleFirstUserInput(e) {
+    const userInput = e.detail;
+    console.log(`Completed: ${userInput}`);
+    startTimer("openai");
+    let command = await parseCommand(userInput);
+    stopTimer("openai");
+    if (command)
+        runCommand(command);
+    else 
+        await askFollowupQuestion(userInput);
+}
