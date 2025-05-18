@@ -67,9 +67,9 @@ async function init_session() {
                     }
                     partial_input += data.delta;
                     if (startsWithCardoGreeting(partial_input)) {
-                        playSmallBeep();
                         hey_cardo_found = true;
                         showStatusMessage("???");
+                        playSmallBeep();
                     }
                 }
                 break
@@ -148,9 +148,9 @@ async function handle_transcription(userInput) {
     }
 
     if (jsonResponse.command) {
-        playBigBeep();
         showStatusMessage(jsonResponse.command);
         setCommandState();
+        playBigBeep();
     }
 
     // console.log(jsonResponse);

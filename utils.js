@@ -17,7 +17,8 @@ function playSmallBeep () {playBeep(50, 0.1);}
 function playBigBeep () {playBeep(100, 1);}
 
 function playBeep(duration, gain) {
-    console.log(`playBeep duration:${duration}, gain:${gain}`);
+ //   startTimer("playBeep");
+//    console.log(`playBeep duration:${duration}, gain:${gain}`);
     init_beep();
 
     const oscillator = audioCtx.createOscillator();
@@ -38,6 +39,7 @@ function playBeep(duration, gain) {
     oscillator.onended = () => {
         oscillator.disconnect();
     };
+//    stopTimer("playBeep");
 }
 
 let _timers = {};
