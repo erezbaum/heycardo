@@ -192,21 +192,13 @@
         }
 
         // --- Off button handler ---
-        document.getElementById('off-btn').addEventListener('click', () => {
-            close_session();
-        });
+        document.getElementById('off-btn').addEventListener('click', stopSession);
 
         // --- Cleanup on unload ---
-        window.addEventListener('beforeunload', () => {
-            close_session();
-        });
-
+        window.addEventListener('beforeunload', stopSession);
+ 
         // --- Start on load ---
-        window.addEventListener('DOMContentLoaded', () => {
-            init_session();
-            setListeningState();
-            showStatusMessage();
-        });
+        window.addEventListener('DOMContentLoaded', startSession);
     </script>
 </body>
 

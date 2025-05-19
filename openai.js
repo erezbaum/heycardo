@@ -1,20 +1,11 @@
-let pc = null;
-let ms = null; // Store MediaStream globally
-let inactivityTimeout = null; // Track inactivity timeout
-const INACTIVITY_DURATION = 1 * 60 * 1000; // 5 minutes in ms
+
 const PART1 = "sk-proj-fqQp-r7m6i4mMZ4UulhvpxcOdC4VnACF91Y-o_ECpgsYwM2tqJE3coSAB9hzlh";
 const PART2 = "4fnoCozV_TvQT3BlbkFJFF-LQOm2Z2yGyIuq2mqgLHeGg-fnokefZYfnJFAJwBD1MBkoXLAD";
 const PART3 = "JPeup3C1-Xwag6iNdUbN8A"
-const hi_regex = /^\s*(hey|hi|high|hello)[^a-zA-Z0-9]+(cardo|kardo|caldo)\b/i;
 
+let clientSecret = null;
 
-function startsWithCardoGreeting(str) {
-    return hi_regex.test(str);
-}
-
-async function init_session() {
-
-    document.addEventListener('first-user-input', HandleFirstUserInput)
+async function setupTranscriptionSession () {
 
     const sessionResponse = await fetch("https://api.openai.com/v1/realtime/transcription_sessions", {
         method: "POST",
@@ -36,25 +27,14 @@ async function init_session() {
             "Content-Type": "application/json"
         },
     });
-    if (!sessionResponse.ok) {
-        console.error('Failed to create session:', sessionResponse.statusText);
-        setError('Failed to create session with OpenAI');
-        return;
+    if (!response.ok) {
+        throw new Error(`Failed to create session: ${response.status}`);
     }
     const sessionData = await sessionResponse.json();
-    const EPHEMERAL_KEY = sessionData.client_secret.value;
+    clientSecret = sessionData.client_secret.value;
+}
 
-    // Create a peer connection
-    pc = new RTCPeerConnection();
-
-    // Add local audio track for microphone input in the browser
-    ms = await navigator.mediaDevices.getUserMedia({
-        audio: true
-    });
-    pc.addTrack(ms.getTracks()[0]);
-
-    let hey_cardo_found = false;
-    let partial_input = "";
+async function setupRTCSession(pc, partialCallback, completeCallback) {
 
     // Set up data channel for sending and receiving events
     const dc = pc.createDataChannel("oai-events");
@@ -63,31 +43,14 @@ async function init_session() {
         const data = JSON.parse(e.data);
         switch (data.type) {
             case "conversation.item.input_audio_transcription.delta":
-                if (!hey_cardo_found) {
-                    if (!partial_input) {
-                        setListeningState();
-                        showStatusMessage();
-                    }
-                    partial_input += data.delta;
-                    if (startsWithCardoGreeting(partial_input)) {
-                        hey_cardo_found = true;
-                        showStatusMessage("???");
-                        playSmallBeep();
-                    }
-                }
+                partialCallback(data.delta);
                 break
             case "conversation.item.input_audio_transcription.completed":
-                document.dispatchEvent(new CustomEvent('first-user-input', { detail: data.transcript }));
-                partial_input = ""; // Reset partial input
-                hey_cardo_found = false; // Reset the flag for the next session
-                if (inactivityTimeout) clearTimeout(inactivityTimeout);
-                inactivityTimeout = setTimeout(close_session, INACTIVITY_DURATION);
+                await completeCallback(data.transcript);
                 break;
             case "transcription_session.created":
                 init_beep();
                 break;
-            default:
-            //                console.log("Unknown event type:", data.type);
         }
     });
 
@@ -98,7 +61,7 @@ async function init_session() {
         method: "POST",
         body: offer.sdp,
         headers: {
-            Authorization: `Bearer ${EPHEMERAL_KEY}`,
+            Authorization: `Bearer ${clientSecret}`,
             "Content-Type": "application/sdp"
         },
     });
@@ -109,27 +72,7 @@ async function init_session() {
     });
 }
 
-function close_session() {
-    if (pc) {
-        pc.close();
-        pc = null;
-    }
-    if (ms) {
-        ms.getTracks().forEach(track => track.stop());
-        ms = null;
-    }
-    if (inactivityTimeout) {
-        clearTimeout(inactivityTimeout);
-        inactivityTimeout = null;
-    }
-    setMuteState();
-}
-
 async function parseCommand(userInput) {
-    if (!startsWithCardoGreeting(userInput)) {
-        console.log("No greeting found, ignoring input.");
-        return;
-    }
     const payload = {
         model: "gpt-4.1-nano",
         messages: [
@@ -166,7 +109,7 @@ async function parseCommand(userInput) {
 }
 
 
-async function askFollowupQuestion(userInput) {
+async function getFollowupQuestionAudio(userInput) {
     const payload = {
         model: "gpt-4o-audio-preview",
         modalities: ["text", "audio"],
@@ -195,24 +138,5 @@ async function askFollowupQuestion(userInput) {
     console.log("Question Text", textResponse);
     const audioBase64 = result.choices[0].message.audio.data;
     const audioBlob = new Blob([Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0))], { type: 'audio/mpeg' });
-    const audioUrl = URL.createObjectURL(audioBlob);
-    playAudio(audioUrl);
-}
-
-function runCommand(command) {
-    showStatusMessage(command);
-    setCommandState();
-    playBigBeep();
-}
-
-async function HandleFirstUserInput(e) {
-    const userInput = e.detail;
-    console.log(`Completed: ${userInput}`);
-    startTimer("openai");
-    let command = await parseCommand(userInput);
-    stopTimer("openai");
-    if (command)
-        runCommand(command);
-    else 
-        await askFollowupQuestion(userInput);
+    return URL.createObjectURL(audioBlob);
 }
