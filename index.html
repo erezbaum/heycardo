@@ -148,6 +148,7 @@
     <script src="utils.js"></script>
     <script src="prompt.js"></script>
     <script src="openai.js"></script>
+    <script src="main.js"></script>
     <script>
         // --- DOM Elements ---
         const mainTitle = document.getElementById('main-title');
@@ -165,6 +166,7 @@
         function setMuteState() {
             statusIcon.src = 'mute.png';
             statusIcon.alt = 'Not Listening';
+            showStatusMessage();
             // Hide the power off button
             const offBtn = document.getElementById('off-btn');
             if (offBtn) offBtn.style.display = 'none';
@@ -175,6 +177,7 @@
             statusIcon.alt = 'Command';
         }
 
+        
         function playAudio (audioUrl) {
             audioPlayer.src = audioUrl;
             audioPlayer.play();
