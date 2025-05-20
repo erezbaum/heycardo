@@ -60,8 +60,8 @@ async function handleFirstUserInput(userInput) {
         STATE = "listening-for-hey-cardo-after-command";
     } else {
         user_first_input = userInput;
-//        const { questionText, questionAudio } = await getFollowupQuestionAudio(userInput);
-        const { questionText, questionAudio } = await getFollowupQuestionAudio2(userInput);
+        const { questionText, questionAudio } = await getFollowupQuestionAudio(userInput);
+//        const { questionText, questionAudio } = await getFollowupQuestionAudio2(userInput);
         console.log("Follow-up Question:", questionText);
         startTimer('playAudio');
         playAudio(questionAudio);
