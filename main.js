@@ -16,17 +16,16 @@ let partial_input = "";
 const handlePartialInput = (delta) => {
     if (STATE === "listening-for-hey-cardo-after-command") {
         setListeningState();
-        showStatusMessage();
         STATE = "listening-for-hey-cardo";
     }
     if (STATE === "listening-for-hey-cardo") {
         partial_input += delta;
         if (startsWithCardoGreeting(partial_input)) {
             STATE = "listening-for-command";
-            showStatusMessage("???");
-            startTimer('playSmallBeep');
-            playSmallBeep();
-            stopTimer('playSmallBeep');
+            setActiveListeningState();
+            // startTimer('playSmallBeep');
+            // playSmallBeep();
+            // stopTimer('playSmallBeep');
         }
     }
 }
@@ -43,7 +42,7 @@ const handleCompletedInput = async (userInput) => {
         } else {
             console.log("No greeting found, ignoring input.");
             STATE = "listening-for-hey-cardo";
-            showStatusMessage();
+            setListeningState();
         }
     } else if (STATE === "listening-for-answer") {
         if (restartTimeout) clearTimeout(restartTimeout);
@@ -61,7 +60,8 @@ async function handleFirstUserInput(userInput) {
         STATE = "listening-for-hey-cardo-after-command";
     } else {
         user_first_input = userInput;
-        const { questionText, questionAudio } = await getFollowupQuestionAudio(userInput);
+//        const { questionText, questionAudio } = await getFollowupQuestionAudio(userInput);
+        const { questionText, questionAudio } = await getFollowupQuestionAudio2(userInput);
         console.log("Follow-up Question:", questionText);
         startTimer('playAudio');
         playAudio(questionAudio);
@@ -81,8 +81,8 @@ async function handleAnswer(userInput) {
         STATE = "listening-for-hey-cardo-after-command";
     } else {
         STATE = "listening-for-hey-cardo";
-        showStatusMessage();
         playAudio('try-again.wav');
+        setListeningState();
     }
 }
 
@@ -90,7 +90,6 @@ function setRestartTimout() {
     if (restartTimeout) clearTimeout(restartTimeout);
     restartTimeout = setTimeout(() => {
         STATE = "listening-for-hey-cardo";
-        showStatusMessage();
         setListeningState();
         if (restartTimeout) clearTimeout(restartTimeout);
         restartTimeout = null;
@@ -99,7 +98,7 @@ function setRestartTimout() {
 
 function noAnswer() {
     STATE = "listening-for-hey-cardo";
-    showStatusMessage();
+    setListeningState();
     if (answerWaitTimeout) clearTimeout(answerWaitTimeout);
     answerWaitTimeout = null;
 }
@@ -121,7 +120,6 @@ async function startSession() {
 
     STATE = "listening-for-hey-cardo";
     setListeningState();
-    showStatusMessage();
 
 }
 

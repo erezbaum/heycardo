@@ -201,7 +201,7 @@ async function getFollowupQuestionAudio2(userInput) {
 
 async function parseAnswer(user_first_input, follow_up_question, userInput) {
     const payload = {
-        model: "gpt-4.1-nano",
+        model: "gpt-4o-mini", //"gpt-4.1-nano",
         messages: [
             { role: "system", content: PARSE_COMMAND_PROMPT },
             { role: "user", content: user_first_input },

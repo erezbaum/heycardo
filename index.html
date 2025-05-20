@@ -126,6 +126,39 @@
             width: 48px;
             height: 48px;
         }
+
+        /* Pulse animation for mic icon */
+        @keyframes mic-pulse {
+            0% {
+                transform: scale(3);
+                filter: brightness(1);
+            }
+
+            50% {
+                transform: scale(3.15);
+                filter: brightness(1.3);
+            }
+
+            100% {
+                transform: scale(3);
+                filter: brightness(1);
+            }
+        }
+
+        /* Class to enlarge and pulse the mic icon */
+        .mic-enlarged {
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: scale(3);
+            animation: mic-pulse 1s infinite;
+            z-index: 10;
+        }
+
+        /* Remove transition for reset */
+        .mic-no-transition {
+            transition: none !important;
+            animation: none !important;
+            transform: scale(1) !important;
+        }
     </style>
 </head>
 
@@ -160,12 +193,24 @@
 
         // Function to change state and update status icon
         function setListeningState() {
+            resetMicIcon();
             statusIcon.src = 'mic.png';
             statusIcon.alt = 'Listening';
+            showStatusMessage();
+
         }
+        function setActiveListeningState() {
+            statusIcon.src = 'mic.png';
+            statusIcon.alt = 'Active Listening';
+            statusIcon.classList.remove('mic-no-transition');
+            statusIcon.classList.add('mic-enlarged');
+            showStatusMessage("???");
+        }
+
         function setMuteState() {
             statusIcon.src = 'mute.png';
             statusIcon.alt = 'Not Listening';
+            resetMicIcon();
             showStatusMessage();
             // Hide the power off button
             const offBtn = document.getElementById('off-btn');
@@ -173,12 +218,12 @@
         }
         // Function to change state and update status icon
         function setCommandState() {
+            resetMicIcon();
             statusIcon.src = 'check.png';
             statusIcon.alt = 'Command';
         }
 
-        
-        function playAudio (audioUrl) {
+        function playAudio(audioUrl) {
             audioPlayer.src = audioUrl;
             audioPlayer.play();
         };
@@ -194,12 +239,22 @@
             }
         }
 
+
+        // Reset mic icon to original size, no transition/pulse
+        function resetMicIcon() {
+            statusIcon.classList.remove('mic-enlarged');
+            statusIcon.classList.add('mic-no-transition');
+            // Force reflow to apply immediate reset
+            void statusIcon.offsetWidth;
+            statusIcon.classList.remove('mic-no-transition');
+        }
+
         // --- Off button handler ---
         document.getElementById('off-btn').addEventListener('click', stopSession);
 
         // --- Cleanup on unload ---
         window.addEventListener('beforeunload', stopSession);
- 
+
         // --- Start on load ---
         window.addEventListener('DOMContentLoaded', startSession);
     </script>
