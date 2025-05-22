@@ -28,7 +28,7 @@ Available Commands Are:
 `;
 
 
-const PARSE_COMMAND_PROMPT = `You are a command parser for Cardo voice assistant.  
+const PARSE_FIRST_COMMAND_PROMPT = `You are a command parser for Cardo voice assistant.  
 Your job is to extract a command only if the user's input starts with a greeting to Cardo, such as "Hi Cardo", "Hey Cardo", or similar (including common misspellings like "Kardo").  
 
 The only valid commands are listed below.
@@ -44,7 +44,7 @@ ${COMMAND_LIST}
 `;
 
 const GENERATE_QUESTION_AUDIO_PROMPT = `You are a command parser for Cardo voice assistant.  
-Your job is to understand a command the user gives to the Cardo device, such command starts with greeting of "Hi Cardo", "Hey Cardo", or similar (including common misspellings like "Kardo"), and then with the commaand itself.
+Your job is to understand a command the user gives to the Cardo device, such command usually starts with greeting of "Hi Cardo", "Hey Cardo", or similar (including common misspellings like "Kardo"), and then with the commaand itself.
 
 The only valid commands are listed below. If the user's request does not clearly correspond to one of these commands, you should ask a single follow up question.
 The questio should be short and to the point and should direct the user to clarify the command they want to give from the list below.
@@ -63,4 +63,20 @@ The questio should be short and to the point and should direct the user to clari
 ${COMMAND_LIST}
 
 Return only the text of the follow up question, your question should be quick and short as much as possible.
+`;
+
+
+const PARSE_SECOND_COMMAND_PROMPT = `You are a command parser for Cardo voice assistant.  
+Your job is to extract a command to be excuted by the device. The only valid commands are listed below.
+Extract the meaning of the user command by combining the user's fiest command , and from his answer to the Assistant follow up question.
+
+The only valid commands are listed below.
+${COMMAND_LIST}
+ 
+- Your response must always be a JSON object: { "command": "<Command_name>" } or { "command": null }.
+- If the user's requests does not clearly correspond to one of these commands, return { "command": null }.
+- If you are not confident the user's two inputs generate requet for one one of the above, respond with {"command": null } only.  
+- If the user provided a commands from the list above, return the command name only in the JSON format: { "command": "<Command_name>" }.
+- Return only the allowed command names above, never anything else.  
+- Never include any extra text outside the JSON object.
 `;

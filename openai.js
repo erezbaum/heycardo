@@ -77,7 +77,7 @@ async function parseCommand(userInput) {
     const payload = {
         model: "gpt-4.1-nano",
         messages: [
-            { role: "system", content: PARSE_COMMAND_PROMPT },
+            { role: "system", content: PARSE_FIRST_COMMAND_PROMPT },
             { role: "user", content: userInput }
         ],
         "response_format": { "type": "json_object" }
@@ -203,7 +203,7 @@ async function parseAnswer(user_first_input, follow_up_question, userInput) {
     const payload = {
         model: "gpt-4o-mini", //"gpt-4.1-nano",
         messages: [
-            { role: "system", content: PARSE_COMMAND_PROMPT },
+            { role: "system", content: PARSE_SECOND_COMMAND_PROMPT },
             { role: "user", content: user_first_input },
             { role: "assistant", content: follow_up_question },
             { role: "user", content: userInput }
