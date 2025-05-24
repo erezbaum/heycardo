@@ -1,3 +1,4 @@
+// OpenAI API integration for Cardo voice assistant: handles transcription, command parsing, and follow-up question logic.
 
 const PART1 = "sk-proj-fqQp-r7m6i4mMZ4UulhvpxcOdC4VnACF91Y-o_ECpgsYwM2tqJE3coSAB9hzlh";
 const PART2 = "4fnoCozV_TvQT3BlbkFJFF-LQOm2Z2yGyIuq2mqgLHeGg-fnokefZYfnJFAJwBD1MBkoXLAD";
@@ -5,6 +6,10 @@ const PART3 = "JPeup3C1-Xwag6iNdUbN8A"
 
 let clientSecret = null;
 
+/**
+ * Sets up a transcription session with the OpenAI API for real-time audio transcription.
+ * No parameters.
+ */
 async function setupTranscriptionSession () {
 
     const sessionResponse = await fetch("https://api.openai.com/v1/realtime/transcription_sessions", {
@@ -34,6 +39,12 @@ async function setupTranscriptionSession () {
     clientSecret = sessionData.client_secret.value;
 }
 
+/**
+ * Sets up a WebRTC session and handles transcription events from the OpenAI API.
+ * @param {RTCPeerConnection} pc - The peer connection object.
+ * @param {function} partialCallback - Callback for partial transcription results.
+ * @param {function} completeCallback - Callback for completed transcription results.
+ */
 async function setupRTCSession(pc, partialCallback, completeCallback) {
 
     // Set up data channel for sending and receiving events
@@ -73,6 +84,11 @@ async function setupRTCSession(pc, partialCallback, completeCallback) {
     });
 }
 
+/**
+ * Sends user input to the OpenAI API to parse and extract a command.
+ * @param {string} userInput - The user's spoken or typed input.
+ * @returns {Promise<string|null>} - The parsed command or null if not found.
+ */
 async function parseCommand(userInput) {
     const payload = {
         model: "gpt-4.1-nano",
@@ -111,6 +127,11 @@ async function parseCommand(userInput) {
 }
 
 
+/**
+ * Gets a follow-up question (text and audio) from the OpenAI API when the command is unclear.
+ * @param {string} userInput - The user's spoken or typed input.
+ * @returns {Promise<{questionText: string, questionAudio: string}>} - The follow-up question text and audio URL.
+ */
 async function getFollowupQuestionAudio(userInput) {
     startTimer('question');
     const payload = {
@@ -146,59 +167,14 @@ async function getFollowupQuestionAudio(userInput) {
     return {questionText, questionAudio};
 }
 
-async function getFollowupQuestionAudio2(userInput) {
-    startTimer('question2');
-    const payload = {
-        model: "gpt-4.1-nano",
-        messages: [
-            { role: "system", content: GENERATE_QUESTION_TEXT_PROMPT },
-            { role: "user", content: userInput }
-        ]
-    };
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${PART1}${PART2}${PART3}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-    });
 
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
-    const questionText = data.choices[0].message.content;
-    console.log("Question Text", questionText);
-
-    const payload2 = {
-        model: "tts-1", //"gpt-4o-mini-tts",
-        input: questionText,
-        voice: "shimmer",
-        response_format: "wav",
-        //speed: 1.5,
-    };
-
-    const response2 = await fetch('https://api.openai.com/v1/audio/speech', {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${PART1}${PART2}${PART3}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload2)
-    });
-
-    if (!response2.ok) {
-        throw new Error(`HTTP error! status: ${response2.status}`);
-    }
-    const audioBlob = await response2.blob();
-    const questionAudio = URL.createObjectURL(audioBlob);
-
-    stopTimer('question2');
-    return {questionText, questionAudio};
-}
-
-
+/**
+ * Parses the user's answer to a follow-up question to extract the intended command.
+ * @param {string} user_first_input - The user's initial input.
+ * @param {string} follow_up_question - The follow-up question asked by the assistant.
+ * @param {string} userInput - The user's answer to the follow-up question.
+ * @returns {Promise<string|null>} - The parsed command or null if not found.
+ */
 async function parseAnswer(user_first_input, follow_up_question, userInput) {
     const payload = {
         model: "gpt-4o-mini", //"gpt-4.1-nano",

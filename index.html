@@ -165,23 +165,23 @@
 <body>
     <div id="container">
         <div id="top-section">
-            <img id="cardo-icon" src="cardo_logo.avif" alt="Cardo Icon">
+            <img id="cardo-icon" src="resources/cardo_logo.avif" alt="Cardo Icon">
             <h1 id="main-title">Unlimited ASR Demo</h1>
         </div>
         <div id="middle-section">
-            <img id="status-icon" src="mic.png" alt="Status Icon">
+            <img id="status-icon" src="resources/mic.png" alt="Status Icon">
             <div id="status-message"></div>
         </div>
     </div>
     <!-- Off button at bottom left -->
     <button id="off-btn" title="Turn Off" style="position:fixed;bottom:24px;left:24px;z-index:1000;background:transparent;border:none;cursor:pointer;padding:0;">
-        <img src="power_off.png" alt="Off" style="width:48px;height:48px;">
+        <img src="resources/power_off.png" alt="Off" style="width:48px;height:48px;">
     </button>
     <audio id="audio-player"></audio>
-    <script src="utils.js"></script>
-    <script src="prompt.js"></script>
-    <script src="openai.js"></script>
-    <script src="main.js"></script>
+    <script src="src/utils.js"></script>
+    <script src="src/prompt.js"></script>
+    <script src="src/openai.js"></script>
+    <script src="src/main.js"></script>
     <script>
         // --- DOM Elements ---
         const mainTitle = document.getElementById('main-title');
@@ -194,13 +194,13 @@
         // Function to change state and update status icon
         function setListeningState() {
             resetMicIcon();
-            statusIcon.src = 'mic.png';
+            statusIcon.src = 'resources/mic.png';
             statusIcon.alt = 'Listening';
             showStatusMessage();
 
         }
         function setActiveListeningState() {
-            statusIcon.src = 'mic.png';
+            statusIcon.src = 'resources/mic.png';
             statusIcon.alt = 'Active Listening';
             statusIcon.classList.remove('mic-no-transition');
             statusIcon.classList.add('mic-enlarged');
@@ -208,7 +208,7 @@
         }
 
         function setMuteState() {
-            statusIcon.src = 'mute.png';
+            statusIcon.src = 'resources/mute.png';
             statusIcon.alt = 'Not Listening';
             resetMicIcon();
             showStatusMessage();
@@ -219,7 +219,7 @@
         // Function to change state and update status icon
         function setCommandState() {
             resetMicIcon();
-            statusIcon.src = 'check.png';
+            statusIcon.src = 'resources/check.png';
             statusIcon.alt = 'Command';
         }
 
