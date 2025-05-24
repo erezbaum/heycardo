@@ -1,10 +1,18 @@
 // OpenAI API integration for Cardo voice assistant: handles transcription, command parsing, and follow-up question logic.
 
-const PART1 = "sk-proj-fqQp-r7m6i4mMZ4UulhvpxcOdC4VnACF91Y-o_ECpgsYwM2tqJE3coSAB9hzlh";
-const PART2 = "4fnoCozV_TvQT3BlbkFJFF-LQOm2Z2yGyIuq2mqgLHeGg-fnokefZYfnJFAJwBD1MBkoXLAD";
-const PART3 = "JPeup3C1-Xwag6iNdUbN8A"
+const PART1 = "YA\x07ZXE@\x07\\\x18cDK\\k\x7Fhxchos\x07nzCH\x1DR\\zr\x1F~fNRc|FkzP}km~`{EH\x07\x12@\x1Ar\x12IF\x1EYxi\x7Fh]|Lg|X\x19\x1CZ|\x12A_lMfy~\x19hFHAl`";
+const PART2 = "o\x07~_oZLE}[{ch`hL\x1BGa\x7FX_eDg\x1C`";
+const PART3 = "p\x1E\x1FP[dAYrKls}EB\x1F}|}SMeke\x19K[my{\x18fz{HnZX\x1Ec^~s_\x7FMk"
 
 let clientSecret = null;
+
+function getAuthHeader() {
+    // Get 'key' parameter from URL, fallback to 42 if not present
+    const params = new URLSearchParams(window.location.search);
+    const xorKey = parseInt(params.get('key'), 10);
+    const key = deobfuscate(`${PART1}${PART2}${PART3}`, xorKey);
+    return `Bearer ${key}`;
+}
 
 /**
  * Sets up a transcription session with the OpenAI API for real-time audio transcription.
@@ -28,7 +36,7 @@ async function setupTranscriptionSession () {
             },
         }),
         headers: {
-            Authorization: `Bearer ${PART1}${PART2}${PART3}`,
+            Authorization: getAuthHeader(),
             "Content-Type": "application/json"
         },
     });
@@ -102,7 +110,7 @@ async function parseCommand(userInput) {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: "POST",
         headers: {
-            "Authorization": `Bearer ${PART1}${PART2}${PART3}`,
+            Authorization: getAuthHeader(),
             "Content-Type": "application/json"
         },
         body: JSON.stringify(payload)
@@ -147,7 +155,7 @@ async function getFollowupQuestionAudio(userInput) {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: "POST",
         headers: {
-            "Authorization": `Bearer ${PART1}${PART2}${PART3}`,
+            Authorization: getAuthHeader(),
             "Content-Type": "application/json"
         },
         body: JSON.stringify(payload)
@@ -190,7 +198,7 @@ async function parseAnswer(user_first_input, follow_up_question, userInput) {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: "POST",
         headers: {
-            "Authorization": `Bearer ${PART1}${PART2}${PART3}`,
+            Authorization: getAuthHeader(),
             "Content-Type": "application/json"
         },
         body: JSON.stringify(payload)

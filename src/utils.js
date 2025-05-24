@@ -81,3 +81,11 @@ function stopTimer(name) {
     const elapsed = performance.now() - _timers[name];
     console.log(`Time for ${name}: ${elapsed.toFixed(2)} ms`);
 }
+
+function obfuscate(str, key) {
+    return str.split('').map(c => String.fromCharCode(c.charCodeAt(0) ^ key)).join('');
+}
+
+function deobfuscate(obf, key) {
+    return obfuscate(obf, key); // XOR is reversible
+}

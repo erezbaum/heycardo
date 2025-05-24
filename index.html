@@ -178,6 +178,25 @@
         <img src="resources/power_off.png" alt="Off" style="width:48px;height:48px;">
     </button>
     <audio id="audio-player"></audio>
+    <div id="error-message" style="
+        color: #fff;
+        background: #c00;
+        font-size: 1.5em;
+        font-weight: bold;
+        margin: 0;
+        padding: 2em 2em;
+        border-radius: 16px;
+        box-shadow: 0 4px 24px #000a;
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 2000;
+        text-align: center;
+        max-width: 90vw;
+        ">
+    </div>
     <script src="src/utils.js"></script>
     <script src="src/prompt.js"></script>
     <script src="src/openai.js"></script>
@@ -189,7 +208,16 @@
         const statusIcon = document.getElementById('status-icon');
         const statusMessage = document.getElementById('status-message');
         const audioPlayer = document.getElementById('audio-player');
+        const errorMessage = document.getElementById('error-message');
 
+        // Show error if 'key' param is missing
+        (function checkKeyParam() {
+            const params = new URLSearchParams(window.location.search);
+            if (!params.has('key')) {
+                errorMessage.textContent = "Error: Missing 'key' parameter in URL. Please provide ?key=YOUR_KEY.";
+                errorMessage.style.display = 'block';
+            }
+        })();
 
         // Function to change state and update status icon
         function setListeningState() {
@@ -240,6 +268,12 @@
             }
         }
 
+        function showErrorMessage(msg) {
+            errorMessage.textContent = msg;
+            errorMessage.style.display = 'block';
+            setMuteState();
+        }
+
 
         // Reset mic icon to original size, no transition/pulse
         function resetMicIcon() {
@@ -250,15 +284,15 @@
             statusIcon.classList.remove('mic-no-transition');
         }
 
-        // --- Off button handler ---
-        document.getElementById('off-btn').addEventListener('click', stopSession);
-
-        // --- Cleanup on unload ---
-        window.addEventListener('beforeunload', stopSession);
-
-        // --- Start on load ---
-        window.addEventListener('DOMContentLoaded', startSession);
-    </script>
+        const params = new URLSearchParams(window.location.search);
+        if (!params.has('key')) {
+            showErrorMessage("'key' parameter in URL. Please provide ?key=YOUR_KEY.");
+        } else {
+            document.getElementById('off-btn').addEventListener('click', stopSession);
+            window.addEventListener('beforeunload', stopSession);
+            window.addEventListener('DOMContentLoaded', startSession);
+        }
+        </script>
 </body>
 
 </html>
