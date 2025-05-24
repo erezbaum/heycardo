@@ -223,8 +223,9 @@
             statusIcon.alt = 'Command';
         }
 
-        function playAudio(audioUrl) {
+        function playAudio(audioUrl, speed = 1.0) {
             audioPlayer.src = audioUrl;
+            audioPlayer.playbackRate = speed;
             audioPlayer.play();
         };
 

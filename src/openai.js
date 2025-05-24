@@ -141,7 +141,7 @@ async function getFollowupQuestionAudio(userInput) {
             { role: "system", content: GENERATE_QUESTION_AUDIO_PROMPT },
             { role: "user", content: userInput }
         ],
-        audio: { voice: "shimmer", format: "wav" }
+        audio: { voice: "shimmer", format: "wav"}
     };
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {

@@ -30,9 +30,6 @@ const onPartialTranscript = (delta) => {
         if (hasCardoGreeting(partialTranscript)) {
             appState = "listening-for-command";
             setActiveListeningState();
-            // startTimer('playSmallBeep');
-            // playSmallBeep();
-            // stopTimer('playSmallBeep');
         }
     }
 }
@@ -76,11 +73,8 @@ async function processFirstUserInput(userInput) {
     } else {
         firstUserInput = userInput;
         const { questionText, questionAudio } = await getFollowupQuestionAudio(userInput);
-//        const { questionText, questionAudio } = await getFollowupQuestionAudio2(userInput);
         console.log("Follow-up Question:", questionText);
-        startTimer('playAudio');
-        playAudio(questionAudio);
-        stopTimer('playAudio');
+        playAudio(questionAudio, 1.2);
         followUpQuestion = questionText;
         appState = "listening-for-answer";
         setRestartTimeout();
