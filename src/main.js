@@ -72,12 +72,21 @@ async function processFirstUserInput(userInput) {
         appState = "listening-for-hey-cardo-after-command";
     } else {
         firstUserInput = userInput;
-        const { questionText, questionAudio } = await getFollowupQuestionAudio(userInput);
-        console.log("Follow-up Question:", questionText);
-        playAudio(questionAudio, 1.2);
-        followUpQuestion = questionText;
-        appState = "listening-for-answer";
-        setRestartTimeout();
+        try {
+            const { questionText, questionAudio } = await getFollowupQuestionAudio(userInput);
+            console.log("Follow-up Question:", questionText);
+            playAudio(questionAudio, 1.2);
+            followUpQuestion = questionText;
+            appState = "listening-for-answer";
+            setRestartTimeout();
+        } catch (e) {
+            console.error(e);
+            if (typeof showErrorMessage === "function") {
+                showErrorMessage(`Follow-up audio failed: ${e.message || e}`);
+            }
+            appState = "listening-for-hey-cardo";
+            setListeningState();
+        }
     }
 }
 

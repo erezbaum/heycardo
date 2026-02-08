@@ -178,6 +178,22 @@
         <img src="resources/power_off.png" alt="Off" style="width:48px;height:48px;">
     </button>
     <audio id="audio-player"></audio>
+    <button id="start-btn" style="
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 1000;
+        background: #0b6;
+        color: #fff;
+        border: none;
+        border-radius: 999px;
+        padding: 14px 22px;
+        font-size: 16px;
+        cursor: pointer;
+        box-shadow: 0 6px 18px #0007;
+        ">
+        Enable Audio + Mic
+    </button>
     <div id="error-message" style="
         color: #fff;
         background: #c00;
@@ -254,7 +270,10 @@
         function playAudio(audioUrl, speed = 1.0) {
             audioPlayer.src = audioUrl;
             audioPlayer.playbackRate = speed;
-            audioPlayer.play();
+            audioPlayer.play().catch((err) => {
+                console.warn("Audio playback blocked:", err);
+                showErrorMessage("Audio playback is blocked. Click 'Enable Audio + Mic' to allow sound.");
+            });
         };
 
         // Function to show/hide a message below the status icon
@@ -287,10 +306,36 @@
         const params = new URLSearchParams(window.location.search);
         if (!params.has('key')) {
             showErrorMessage("'key' parameter in URL. Please provide ?key=YOUR_KEY.");
+            const startBtn = document.getElementById('start-btn');
+            if (startBtn) startBtn.style.display = 'none';
         } else {
             document.getElementById('off-btn').addEventListener('click', stopSession);
             window.addEventListener('beforeunload', stopSession);
-            window.addEventListener('DOMContentLoaded', startSession);
+            const startBtn = document.getElementById('start-btn');
+            startBtn.addEventListener('click', async () => {
+                startBtn.style.display = 'none';
+                try {
+                    // Unlock Web Audio and HTMLAudio playback in a user gesture.
+                    init_beep();
+                    if (audioCtx && audioCtx.state === 'suspended') {
+                        await audioCtx.resume();
+                    }
+                    audioPlayer.muted = true;
+                    audioPlayer.src = 'resources/ok.wav';
+                    await audioPlayer.play();
+                    audioPlayer.pause();
+                    audioPlayer.currentTime = 0;
+                    audioPlayer.muted = false;
+                } catch (e) {
+                    console.warn("Audio unlock failed:", e);
+                }
+                try {
+                    await startSession();
+                } catch (e) {
+                    console.error(e);
+                    showErrorMessage(`Failed to start session: ${e.message || e}`);
+                }
+            });
         }
         </script>
 </body>

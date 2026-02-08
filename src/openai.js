@@ -85,6 +85,9 @@ async function setupRTCSession(pc, partialCallback, completeCallback) {
             "Content-Type": "application/sdp"
         },
     });
+    if (!sdpResponse.ok) {
+        throw new Error(`Failed to start realtime session: ${sdpResponse.status}`);
+    }
 
     await pc.setRemoteDescription({
         type: "answer",
@@ -143,7 +146,7 @@ async function parseCommand(userInput) {
 async function getFollowupQuestionAudio(userInput) {
     startTimer('question');
     const payload = {
-        model: "gpt-4o-audio-preview",
+        model: "gpt-audio",
         modalities: ["text", "audio"],
         messages: [
             { role: "system", content: GENERATE_QUESTION_AUDIO_PROMPT },
@@ -166,10 +169,13 @@ async function getFollowupQuestionAudio(userInput) {
     }
 
     const result = await response.json();
+    if (!result?.choices?.[0]?.message?.audio?.data) {
+        throw new Error("No audio returned from OpenAI.");
+    }
     const questionText = result.choices[0].message.audio.transcript;
     console.log("Question Text", questionText);
     const audioBase64 = result.choices[0].message.audio.data;
-    const audioBlob = new Blob([Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0))], { type: 'audio/mpeg' });
+    const audioBlob = new Blob([Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0))], { type: 'audio/wav' });
     const questionAudio = URL.createObjectURL(audioBlob);
     stopTimer('question');
     return {questionText, questionAudio};
