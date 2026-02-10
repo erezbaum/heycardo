@@ -8,4 +8,4 @@ script = ""
 [[actions]]
 name = "Run"
 icon = "run"
-command = "open -a \"Google Chrome\" --args \"file:///Users/erez/Source/heycardo/index.html?key=42\""
+command = "\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" \"file:///Users/erez/Source/heycardo/index.html?key=42\""
