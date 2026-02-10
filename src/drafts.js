@@ -1,13 +1,13 @@
 async function getFollowupQuestionAudio2(userInput) {
     startTimer('question2');
     const payload = {
-        model: "gpt-4.1-nano",
-        messages: [
-            { role: "system", content: generateQuestionTextPrompt },
-            { role: "user", content: userInput }
-        ]
+        model: "gpt-5-nano",
+        instructions: generateQuestionTextPrompt,
+        input: userInput,
+        reasoning: { effort: "minimal" },
+        text: { verbosity: "low" }
     };
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/responses', {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${PART1}${PART2}${PART3}`,
@@ -20,11 +20,11 @@ async function getFollowupQuestionAudio2(userInput) {
         throw new Error(`HTTP error! status: ${response.status}`);
     }
     const data = await response.json();
-    const questionText = data.choices[0].message.content;
+    const questionText = data.output_text || "";
     console.log("Question Text", questionText);
 
     const payload2 = {
-        model: "tts-1", //"gpt-4o-mini-tts",
+        model: "gpt-4o-mini-tts",
         input: questionText,
         voice: "shimmer",
         response_format: "wav",
@@ -49,4 +49,3 @@ async function getFollowupQuestionAudio2(userInput) {
     stopTimer('question2');
     return {questionText, questionAudio};
 }
-

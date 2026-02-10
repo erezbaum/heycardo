@@ -60,6 +60,28 @@ const onFinalTranscript = async (userInput) => {
 }
 
 /**
+ * Handles transcription failures from Realtime events.
+ * @param {object} eventData - Failure event payload from Realtime.
+ */
+const onTranscriptionError = async (eventData) => {
+    const error = eventData && eventData.error ? eventData.error : {};
+    const code = error.code || error.type || "unknown_error";
+    const message = error.message || "Transcription failed.";
+
+    if (typeof logEvent === "function") {
+        logEvent("transcription.failed", { code, message, event_id: eventData && eventData.event_id });
+    }
+
+    if (code === "insufficient_quota") {
+        showErrorMessage("OpenAI quota exceeded for this API key/project. Add billing/credits, then restart.");
+    } else {
+        showErrorMessage(`Transcription failed: ${message}`);
+    }
+
+    stopSession();
+}
+
+/**
  * Processes the user's first input to determine if it is a command or requires a follow-up.
  * @param {string} userInput - The user's initial input.
  */
@@ -96,6 +118,7 @@ async function processFirstUserInput(userInput) {
  */
 async function processUserAnswer(userInput) {
     console.log("User Answer:", userInput);
+    const wakeWordDetected = hasCardoGreeting(userInput);
     let command = await parseAnswer(firstUserInput, followUpQuestion, userInput);
     console.log("Parsed Command:", command);
     if (command) {
@@ -103,7 +126,11 @@ async function processUserAnswer(userInput) {
         appState = "listening-for-hey-cardo-after-command";
     } else {
         appState = "listening-for-hey-cardo";
-        playAudio('resources/try-again.wav');
+        if (wakeWordDetected) {
+            playAudio('resources/try-again.wav');
+        } else {
+            console.log("No wake word in follow-up answer, remaining silent.");
+        }
         setListeningState();
     }
 }
@@ -139,21 +166,44 @@ function resetToListeningState() {
  */
 async function startSession() {
 
+    if (typeof logEvent === "function") logEvent("startSession.begin");
+
+    // Request microphone access first so permission prompt appears immediately.
+    try {
+        ms = await navigator.mediaDevices.getUserMedia({
+            audio: true
+        });
+        if (typeof logEvent === "function") logEvent("mic.granted", { tracks: ms.getTracks().length });
+    } catch (e) {
+        if (typeof logEvent === "function") logEvent("mic.denied", { message: e.message || String(e) });
+        throw e;
+    }
+
     await setupTranscriptionSession();
+    if (typeof logEvent === "function") logEvent("transcription.session.created");
 
     // Create a peer connection
     pc = new RTCPeerConnection();
-
-    // Add local audio track for microphone input in the browser
-    ms = await navigator.mediaDevices.getUserMedia({
-        audio: true
+    if (typeof logEvent === "function") logEvent("pc.created");
+    pc.addEventListener("iceconnectionstatechange", () => {
+        if (typeof logEvent === "function") logEvent("pc.ice", { state: pc.iceConnectionState });
     });
-    pc.addTrack(ms.getTracks()[0]);
+    pc.addEventListener("connectionstatechange", () => {
+        if (typeof logEvent === "function") logEvent("pc.connection", { state: pc.connectionState });
+    });
+    pc.addEventListener("signalingstatechange", () => {
+        if (typeof logEvent === "function") logEvent("pc.signaling", { state: pc.signalingState });
+    });
 
-    await setupRTCSession(pc, onPartialTranscript, onFinalTranscript);
+    pc.addTrack(ms.getTracks()[0]);
+    if (typeof logEvent === "function") logEvent("pc.track.added");
+
+    await setupRTCSession(pc, onPartialTranscript, onFinalTranscript, onTranscriptionError);
+    if (typeof logEvent === "function") logEvent("rtc.session.ready");
 
     appState = "listening-for-hey-cardo";
     setListeningState();
+    if (typeof logEvent === "function") logEvent("state.listening");
 
 }
 

@@ -5,6 +5,9 @@ const PART2 = "o\x07~_oZLE}[{ch`hL\x1BGa\x7FX_eDg\x1C`";
 const PART3 = "p\x1E\x1FP[dAYrKls}EB\x1F}|}SMeke\x19K[my{\x18fz{HnZX\x1Ec^~s_\x7FMk"
 
 let clientSecret = null;
+const FAST_TEXT_MODEL = "gpt-5-nano";
+const FAST_TEXT_MODEL_FALLBACK = "gpt-4.1-nano";
+const TTS_MODEL = "gpt-4o-mini-tts";
 
 function getAuthHeader() {
     // Get 'key' parameter from URL, fallback to 42 if not present
@@ -20,6 +23,7 @@ function getAuthHeader() {
  */
 async function setupTranscriptionSession () {
 
+    if (typeof logEvent === "function") logEvent("api.transcription_session.create.start");
     const sessionResponse = await fetch("https://api.openai.com/v1/realtime/transcription_sessions", {
         method: "POST",
         body: JSON.stringify({
@@ -41,10 +45,17 @@ async function setupTranscriptionSession () {
         },
     });
     if (!sessionResponse.ok) {
+        if (typeof logEvent === "function") logEvent("api.transcription_session.create.fail", { status: sessionResponse.status });
         throw new Error(`Failed to create session: ${sessionResponse.status}`);
     }
     const sessionData = await sessionResponse.json();
     clientSecret = sessionData.client_secret.value;
+    // Log session settings without secrets to help debug transcription issues.
+    if (typeof logEvent === "function") {
+        const { client_secret, ...safeSessionData } = sessionData || {};
+        logEvent("api.transcription_session.create.session", safeSessionData);
+    }
+    if (typeof logEvent === "function") logEvent("api.transcription_session.create.ok");
 }
 
 /**
@@ -52,14 +63,34 @@ async function setupTranscriptionSession () {
  * @param {RTCPeerConnection} pc - The peer connection object.
  * @param {function} partialCallback - Callback for partial transcription results.
  * @param {function} completeCallback - Callback for completed transcription results.
+ * @param {function} errorCallback - Callback for transcription failure events.
  */
-async function setupRTCSession(pc, partialCallback, completeCallback) {
+async function setupRTCSession(pc, partialCallback, completeCallback, errorCallback) {
 
     // Set up data channel for sending and receiving events
     const dc = pc.createDataChannel("oai-events");
+    if (typeof logEvent === "function") logEvent("rtc.datachannel.created");
+    dc.addEventListener("open", () => {
+        if (typeof logEvent === "function") logEvent("rtc.datachannel.open");
+    });
+    dc.addEventListener("close", () => {
+        if (typeof logEvent === "function") logEvent("rtc.datachannel.close");
+    });
+    dc.addEventListener("error", () => {
+        if (typeof logEvent === "function") logEvent("rtc.datachannel.error");
+    });
     dc.addEventListener("message", async (e) => {
         // Realtime server events appear here!
         const data = JSON.parse(e.data);
+        if (typeof logEvent === "function") {
+            // Log full payload for failures to capture error codes/messages.
+            const isFailure = typeof data?.type === "string" && data.type.endsWith(".failed");
+            if (isFailure) {
+                logEvent("rtc.event", { type: data.type, data });
+            } else {
+                logEvent("rtc.event", { type: data.type });
+            }
+        }
         switch (data.type) {
             case "conversation.item.input_audio_transcription.delta":
                 partialCallback(data.delta);
@@ -67,6 +98,11 @@ async function setupRTCSession(pc, partialCallback, completeCallback) {
             case "conversation.item.input_audio_transcription.completed":
                 console.log("Final Transcription:", data.transcript);   
                 await completeCallback(data.transcript);
+                break;
+            case "conversation.item.input_audio_transcription.failed":
+                if (typeof errorCallback === "function") {
+                    await errorCallback(data);
+                }
                 break;
             case "transcription_session.created":
                 init_beep();
@@ -77,6 +113,7 @@ async function setupRTCSession(pc, partialCallback, completeCallback) {
     // Start the session using the Session Description Protocol (SDP)
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
+    if (typeof logEvent === "function") logEvent("rtc.offer.created");
     const sdpResponse = await fetch("https://api.openai.com/v1/realtime", {
         method: "POST",
         body: offer.sdp,
@@ -86,6 +123,7 @@ async function setupRTCSession(pc, partialCallback, completeCallback) {
         },
     });
     if (!sdpResponse.ok) {
+        if (typeof logEvent === "function") logEvent("rtc.sdp.fail", { status: sdpResponse.status });
         throw new Error(`Failed to start realtime session: ${sdpResponse.status}`);
     }
 
@@ -93,6 +131,7 @@ async function setupRTCSession(pc, partialCallback, completeCallback) {
         type: "answer",
         sdp: await sdpResponse.text(),
     });
+    if (typeof logEvent === "function") logEvent("rtc.sdp.ok");
 }
 
 /**
@@ -101,38 +140,29 @@ async function setupRTCSession(pc, partialCallback, completeCallback) {
  * @returns {Promise<string|null>} - The parsed command or null if not found.
  */
 async function parseCommand(userInput) {
+    if (typeof logEvent === "function") logEvent("api.parse_command.start");
     const payload = {
-        model: "gpt-4.1-nano",
-        messages: [
-            { role: "system", content: PARSE_FIRST_COMMAND_PROMPT },
-            { role: "user", content: userInput }
-        ],
-        "response_format": { "type": "json_object" }
+        model: FAST_TEXT_MODEL,
+        instructions: `${PARSE_FIRST_COMMAND_PROMPT}\n\nReturn strict JSON only.`,
+        input: userInput,
+        reasoning: { effort: "minimal" },
+        text: {
+            verbosity: "low",
+            format: { type: "json_object" }
+        }
     };
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: "POST",
-        headers: {
-            Authorization: getAuthHeader(),
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
+    const result = await createFastJsonResponse(payload);
+    const outputText = extractResponseOutputText(result);
 
     let jsonResponse;
     try {
-        jsonResponse = JSON.parse(data.choices[0].message.content);
+        jsonResponse = JSON.parse(outputText);
     } catch (e) {
         jsonResponse = { command: null }; // fallback
     }
     if (jsonResponse.command === "null")
         jsonResponse.command = null; // fallback
+    if (typeof logEvent === "function") logEvent("api.parse_command.ok", { command: jsonResponse.command });
     return jsonResponse.command;
 
 }
@@ -144,40 +174,47 @@ async function parseCommand(userInput) {
  * @returns {Promise<{questionText: string, questionAudio: string}>} - The follow-up question text and audio URL.
  */
 async function getFollowupQuestionAudio(userInput) {
+    if (typeof logEvent === "function") logEvent("api.followup_audio.start");
     startTimer('question');
-    const payload = {
-        model: "gpt-audio",
-        modalities: ["text", "audio"],
-        messages: [
-            { role: "system", content: GENERATE_QUESTION_AUDIO_PROMPT },
-            { role: "user", content: userInput }
-        ],
-        audio: { voice: "shimmer", format: "wav"}
+
+    const questionPayload = {
+        model: FAST_TEXT_MODEL,
+        instructions: GENERATE_QUESTION_AUDIO_PROMPT,
+        input: userInput,
+        reasoning: { effort: "minimal" },
+        text: { verbosity: "low" }
     };
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const questionResult = await createFastJsonResponse(questionPayload);
+    const questionText = extractResponseOutputText(questionResult).trim();
+    if (!questionText) {
+        throw new Error("No follow-up text returned from OpenAI.");
+    }
+
+    const ttsPayload = {
+        model: TTS_MODEL,
+        input: questionText,
+        voice: "shimmer",
+        response_format: "wav"
+    };
+    const ttsResponse = await fetch("https://api.openai.com/v1/audio/speech", {
         method: "POST",
         headers: {
             Authorization: getAuthHeader(),
             "Content-Type": "application/json"
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(ttsPayload)
     });
 
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    if (!ttsResponse.ok) {
+        if (typeof logEvent === "function") logEvent("api.followup_audio.fail", { status: ttsResponse.status });
+        throw new Error(`TTS HTTP error! status: ${ttsResponse.status}`);
     }
 
-    const result = await response.json();
-    if (!result?.choices?.[0]?.message?.audio?.data) {
-        throw new Error("No audio returned from OpenAI.");
-    }
-    const questionText = result.choices[0].message.audio.transcript;
-    console.log("Question Text", questionText);
-    const audioBase64 = result.choices[0].message.audio.data;
-    const audioBlob = new Blob([Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0))], { type: 'audio/wav' });
+    const audioBlob = await ttsResponse.blob();
     const questionAudio = URL.createObjectURL(audioBlob);
     stopTimer('question');
+    if (typeof logEvent === "function") logEvent("api.followup_audio.ok");
     return {questionText, questionAudio};
 }
 
@@ -190,40 +227,172 @@ async function getFollowupQuestionAudio(userInput) {
  * @returns {Promise<string|null>} - The parsed command or null if not found.
  */
 async function parseAnswer(user_first_input, follow_up_question, userInput) {
+    if (typeof logEvent === "function") logEvent("api.parse_answer.start");
     const payload = {
-        model: "gpt-4o-mini", //"gpt-4.1-nano",
-        messages: [
+        model: FAST_TEXT_MODEL,
+        input: [
             { role: "system", content: PARSE_SECOND_COMMAND_PROMPT },
+            { role: "system", content: "Return strict JSON only." },
             { role: "user", content: user_first_input },
             { role: "assistant", content: follow_up_question },
             { role: "user", content: userInput }
         ],
-        "response_format": { "type": "json_object" }
+        reasoning: { effort: "minimal" },
+        text: {
+            verbosity: "low",
+            format: { type: "json_object" }
+        }
     };
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: "POST",
-        headers: {
-            Authorization: getAuthHeader(),
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
+    const result = await createFastJsonResponse(payload);
+    const outputText = extractResponseOutputText(result);
 
     let jsonResponse;
     try {
-        jsonResponse = JSON.parse(data.choices[0].message.content);
+        jsonResponse = JSON.parse(outputText);
     } catch (e) {
         jsonResponse = { command: null }; // fallback
     }
     if (jsonResponse.command === "null")
         jsonResponse.command = null; // fallback
 
+    if (typeof logEvent === "function") logEvent("api.parse_answer.ok", { command: jsonResponse.command });
     return jsonResponse.command;
+}
+
+function extractResponseOutputText(result) {
+    if (typeof result?.output_text === "string" && result.output_text.length > 0) {
+        return result.output_text;
+    }
+    const output = Array.isArray(result?.output) ? result.output : [];
+    for (const item of output) {
+        if (item?.type === "message" && Array.isArray(item?.content)) {
+            for (const part of item.content) {
+                if (part?.type === "output_text" && typeof part?.text === "string") {
+                    return part.text;
+                }
+            }
+        }
+    }
+    return "";
+}
+
+async function createFastJsonResponse(payload) {
+    const baseHeaders = {
+        Authorization: getAuthHeader(),
+        "Content-Type": "application/json"
+    };
+    const preparedPayload = preparePayloadForJsonMode(payload);
+
+    // First attempt: latest fast model with low-latency tuning.
+    const firstTry = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: baseHeaders,
+        body: JSON.stringify(preparedPayload)
+    });
+    if (firstTry.ok) {
+        return await firstTry.json();
+    }
+
+    const firstBody = await safeReadBody(firstTry);
+    if (typeof logEvent === "function") {
+        logEvent("api.responses.fail", {
+            status: firstTry.status,
+            model: preparedPayload?.model,
+            body: firstBody
+        });
+    }
+
+    // Second attempt: remove reasoning/verbosity tuning in case the model rejects params.
+    const relaxedPayload = {
+        ...preparedPayload,
+        reasoning: undefined,
+        text: preparedPayload?.text?.format ? { format: preparedPayload.text.format } : undefined
+    };
+    const secondTry = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: baseHeaders,
+        body: JSON.stringify(relaxedPayload)
+    });
+    if (secondTry.ok) {
+        return await secondTry.json();
+    }
+
+    const secondBody = await safeReadBody(secondTry);
+    if (typeof logEvent === "function") {
+        logEvent("api.responses.fail", {
+            status: secondTry.status,
+            model: relaxedPayload?.model,
+            body: secondBody
+        });
+    }
+
+    // Third attempt: older fast fallback model for projects without GPT-5 access.
+    const fallbackPayload = {
+        ...relaxedPayload,
+        model: FAST_TEXT_MODEL_FALLBACK
+    };
+    const thirdTry = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: baseHeaders,
+        body: JSON.stringify(fallbackPayload)
+    });
+    if (thirdTry.ok) {
+        return await thirdTry.json();
+    }
+
+    const thirdBody = await safeReadBody(thirdTry);
+    if (typeof logEvent === "function") {
+        logEvent("api.responses.fail", {
+            status: thirdTry.status,
+            model: fallbackPayload?.model,
+            body: thirdBody
+        });
+    }
+    throw new Error(`OpenAI responses failed with status ${thirdTry.status}`);
+}
+
+async function safeReadBody(response) {
+    try {
+        return await response.text();
+    } catch (_err) {
+        return "";
+    }
+}
+
+function preparePayloadForJsonMode(payload) {
+    const formatType = payload?.text?.format?.type;
+    if (formatType !== "json_object") {
+        return payload;
+    }
+
+    const jsonGuardMessage = { role: "system", content: "Return valid json only." };
+    const cloned = { ...payload };
+
+    if (typeof cloned.input === "string") {
+        cloned.input = [jsonGuardMessage, { role: "user", content: cloned.input }];
+        return cloned;
+    }
+
+    if (Array.isArray(cloned.input)) {
+        const hasJsonWord = cloned.input.some((item) => {
+            const content = item?.content;
+            if (typeof content === "string") {
+                return /json/i.test(content);
+            }
+            if (Array.isArray(content)) {
+                return content.some((part) => {
+                    if (typeof part?.text === "string") return /json/i.test(part.text);
+                    if (typeof part?.content === "string") return /json/i.test(part.content);
+                    return false;
+                });
+            }
+            return false;
+        });
+        if (!hasJsonWord) {
+            cloned.input = [jsonGuardMessage, ...cloned.input];
+        }
+    }
+
+    return cloned;
 }

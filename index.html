@@ -76,6 +76,10 @@
             display: block;
         }
 
+        #status-icon.mic-disabled {
+            filter: grayscale(1) opacity(0.45);
+        }
+
         #status-message {
             min-height: 1.5em;
             text-align: center;
@@ -169,7 +173,7 @@
             <h1 id="main-title">Unlimited ASR Demo</h1>
         </div>
         <div id="middle-section">
-            <img id="status-icon" src="resources/mic.png" alt="Status Icon">
+            <img id="status-icon" class="mic-disabled" src="resources/mic.png" alt="Status Icon">
             <div id="status-message"></div>
         </div>
     </div>
@@ -178,22 +182,44 @@
         <img src="resources/power_off.png" alt="Off" style="width:48px;height:48px;">
     </button>
     <audio id="audio-player"></audio>
-    <button id="start-btn" style="
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        z-index: 1000;
-        background: #0b6;
-        color: #fff;
-        border: none;
-        border-radius: 999px;
-        padding: 14px 22px;
-        font-size: 16px;
-        cursor: pointer;
-        box-shadow: 0 6px 18px #0007;
+    <div id="audio-unlock-banner" style="
+        display:none;
+        position:fixed;
+        bottom:24px;
+        left:50%;
+        transform:translateX(-50%);
+        z-index:2002;
+        background:#000c;
+        color:#fff;
+        border:1px solid #fff3;
+        border-radius:999px;
+        padding:10px 14px;
+        font-size:14px;
+        line-height:1;
+        pointer-events:none;
         ">
-        Enable Audio + Mic
-    </button>
+        Tap anywhere to enable sound
+    </div>
+    <div id="log-panel" style="
+        position: fixed;
+        right: 16px;
+        top: 16px;
+        width: min(520px, 92vw);
+        max-height: 46vh;
+        overflow: auto;
+        background: #111c;
+        color: #cfe;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.35;
+        padding: 10px 12px;
+        border: 1px solid #2a3;
+        border-radius: 8px;
+        z-index: 2001;
+        ">
+        <div style="font-weight:700;color:#9f9;margin-bottom:6px;">Logs</div>
+        <div id="log-lines"></div>
+    </div>
     <div id="error-message" style="
         color: #fff;
         background: #c00;
@@ -224,11 +250,45 @@
         const statusIcon = document.getElementById('status-icon');
         const statusMessage = document.getElementById('status-message');
         const audioPlayer = document.getElementById('audio-player');
+        const audioUnlockBanner = document.getElementById('audio-unlock-banner');
         const errorMessage = document.getElementById('error-message');
+        const params = new URLSearchParams(window.location.search);
+        const logPanel = document.getElementById('log-panel');
+        const logLines = document.getElementById('log-lines');
+        const logBuffer = [];
+        const LOG_MAX = 200;
+        let audioUnlockInFlight = null;
+        let audioUnlocked = false;
+
+        if (logPanel && !params.has('log')) {
+            logPanel.style.display = 'none';
+        }
+
+        function logEvent(message, data) {
+            const ts = new Date().toISOString().split('T')[1].replace('Z', '');
+            const line = `[${ts}] ${message}${data ? " | " + JSON.stringify(data) : ""}`;
+            logBuffer.push(line);
+            if (logBuffer.length > LOG_MAX) logBuffer.shift();
+            logLines.textContent = logBuffer.join("\n");
+            logLines.scrollTop = logLines.scrollHeight;
+            console.log(line);
+        }
+        window.logEvent = logEvent;
+
+        window.addEventListener('error', (e) => {
+            logEvent("window.error", { message: e.message, filename: e.filename, lineno: e.lineno, colno: e.colno });
+        });
+        window.addEventListener('unhandledrejection', (e) => {
+            logEvent("unhandledrejection", { reason: e.reason && (e.reason.message || e.reason) });
+        });
+
+        audioPlayer.addEventListener('play', () => logEvent("audio.play"));
+        audioPlayer.addEventListener('pause', () => logEvent("audio.pause"));
+        audioPlayer.addEventListener('ended', () => logEvent("audio.ended"));
+        audioPlayer.addEventListener('error', () => logEvent("audio.error", { code: audioPlayer.error && audioPlayer.error.code }));
 
         // Show error if 'key' param is missing
         (function checkKeyParam() {
-            const params = new URLSearchParams(window.location.search);
             if (!params.has('key')) {
                 errorMessage.textContent = "Error: Missing 'key' parameter in URL. Please provide ?key=YOUR_KEY.";
                 errorMessage.style.display = 'block';
@@ -240,12 +300,14 @@
             resetMicIcon();
             statusIcon.src = 'resources/mic.png';
             statusIcon.alt = 'Listening';
+            statusIcon.classList.remove('mic-disabled');
             showStatusMessage();
 
         }
         function setActiveListeningState() {
             statusIcon.src = 'resources/mic.png';
             statusIcon.alt = 'Active Listening';
+            statusIcon.classList.remove('mic-disabled');
             statusIcon.classList.remove('mic-no-transition');
             statusIcon.classList.add('mic-enlarged');
             showStatusMessage("???");
@@ -254,6 +316,7 @@
         function setMuteState() {
             statusIcon.src = 'resources/mute.png';
             statusIcon.alt = 'Not Listening';
+            statusIcon.classList.remove('mic-disabled');
             resetMicIcon();
             showStatusMessage();
             // Hide the power off button
@@ -265,6 +328,7 @@
             resetMicIcon();
             statusIcon.src = 'resources/check.png';
             statusIcon.alt = 'Command';
+            statusIcon.classList.remove('mic-disabled');
         }
 
         function playAudio(audioUrl, speed = 1.0) {
@@ -272,7 +336,7 @@
             audioPlayer.playbackRate = speed;
             audioPlayer.play().catch((err) => {
                 console.warn("Audio playback blocked:", err);
-                showErrorMessage("Audio playback is blocked. Click 'Enable Audio + Mic' to allow sound.");
+                showAudioUnlockBanner();
             });
         };
 
@@ -293,6 +357,14 @@
             setMuteState();
         }
 
+        function showAudioUnlockBanner() {
+            if (audioUnlockBanner) audioUnlockBanner.style.display = 'block';
+        }
+
+        function hideAudioUnlockBanner() {
+            if (audioUnlockBanner) audioUnlockBanner.style.display = 'none';
+        }
+
 
         // Reset mic icon to original size, no transition/pulse
         function resetMicIcon() {
@@ -303,39 +375,75 @@
             statusIcon.classList.remove('mic-no-transition');
         }
 
-        const params = new URLSearchParams(window.location.search);
         if (!params.has('key')) {
             showErrorMessage("'key' parameter in URL. Please provide ?key=YOUR_KEY.");
-            const startBtn = document.getElementById('start-btn');
-            if (startBtn) startBtn.style.display = 'none';
         } else {
             document.getElementById('off-btn').addEventListener('click', stopSession);
             window.addEventListener('beforeunload', stopSession);
-            const startBtn = document.getElementById('start-btn');
-            startBtn.addEventListener('click', async () => {
-                startBtn.style.display = 'none';
-                try {
-                    // Unlock Web Audio and HTMLAudio playback in a user gesture.
-                    init_beep();
-                    if (audioCtx && audioCtx.state === 'suspended') {
-                        await audioCtx.resume();
+
+            const unlockAudio = async () => {
+                if (audioUnlocked) return true;
+                if (audioUnlockInFlight) return audioUnlockInFlight;
+
+                audioUnlockInFlight = (async () => {
+                    logEvent("audio.unlock_attempt");
+                    try {
+                        // Attempt audio unlock; this is strongest in a user gesture.
+                        init_beep();
+                        if (audioCtx && audioCtx.state === 'suspended') {
+                            await audioCtx.resume();
+                        }
+                        audioPlayer.muted = true;
+                        audioPlayer.src = 'resources/ok.wav';
+                        await audioPlayer.play();
+                        audioPlayer.pause();
+                        audioPlayer.currentTime = 0;
+                        audioPlayer.muted = false;
+                        audioUnlocked = true;
+                        logEvent("audio.unlocked");
+                        hideAudioUnlockBanner();
+                        return true;
+                    } catch (e) {
+                        logEvent("audio.unlock_failed", { message: e.message || String(e) });
+                        showAudioUnlockBanner();
+                        return false;
+                    } finally {
+                        audioUnlockInFlight = null;
                     }
-                    audioPlayer.muted = true;
-                    audioPlayer.src = 'resources/ok.wav';
-                    await audioPlayer.play();
-                    audioPlayer.pause();
-                    audioPlayer.currentTime = 0;
-                    audioPlayer.muted = false;
-                } catch (e) {
-                    console.warn("Audio unlock failed:", e);
-                }
+                })();
+
+                return audioUnlockInFlight;
+            };
+
+            const startApp = async () => {
+                logEvent("startApp.begin");
+                // Do not block mic/session startup on autoplay unlock behavior.
+                unlockAudio().catch((e) => {
+                    logEvent("audio.unlock_background_error", { message: e && (e.message || String(e)) });
+                });
                 try {
+                    logEvent("session.starting");
                     await startSession();
+                    logEvent("session.started");
                 } catch (e) {
-                    console.error(e);
+                    logEvent("session.start_failed", { message: e.message || String(e) });
                     showErrorMessage(`Failed to start session: ${e.message || e}`);
                 }
-            });
+            };
+
+            // Start as early as possible on page load.
+            startApp();
+
+            // Fallback unlock for browsers that require a gesture for audio output.
+            const unlockOnGesture = async () => {
+                await unlockAudio();
+                document.removeEventListener('pointerdown', unlockOnGesture);
+                document.removeEventListener('keydown', unlockOnGesture);
+                document.removeEventListener('touchstart', unlockOnGesture);
+            };
+            document.addEventListener('pointerdown', unlockOnGesture, { once: true });
+            document.addEventListener('keydown', unlockOnGesture, { once: true });
+            document.addEventListener('touchstart', unlockOnGesture, { once: true });
         }
         </script>
 </body>
