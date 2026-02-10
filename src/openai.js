@@ -8,6 +8,25 @@ let clientSecret = null;
 const FAST_TEXT_MODEL = "gpt-5-nano";
 const FAST_TEXT_MODEL_FALLBACK = "gpt-4.1-nano";
 const TTS_MODEL = "gpt-4o-mini-tts";
+if (!Array.isArray(ALLOWED_COMMANDS) || ALLOWED_COMMANDS.length === 0) {
+    throw new Error("ALLOWED_COMMANDS must be defined in prompt.js before openai.js loads.");
+}
+const COMMAND_JSON_SCHEMA = {
+    type: "json_schema",
+    name: "cardo_command",
+    schema: {
+        type: "object",
+        properties: {
+            command: {
+                type: ["string", "null"],
+                enum: [...ALLOWED_COMMANDS, null]
+            }
+        },
+        required: ["command"],
+        additionalProperties: false
+    },
+    strict: true
+};
 
 function getAuthHeader() {
     // Get 'key' parameter from URL, fallback to 42 if not present
@@ -143,12 +162,12 @@ async function parseCommand(userInput) {
     if (typeof logEvent === "function") logEvent("api.parse_command.start");
     const payload = {
         model: FAST_TEXT_MODEL,
-        instructions: `${PARSE_FIRST_COMMAND_PROMPT}\n\nReturn strict JSON only.`,
+        instructions: PARSE_FIRST_COMMAND_PROMPT,
         input: userInput,
         reasoning: { effort: "minimal" },
         text: {
             verbosity: "low",
-            format: { type: "json_object" }
+            format: COMMAND_JSON_SCHEMA
         }
     };
     const result = await createFastJsonResponse(payload);
@@ -186,7 +205,7 @@ async function getFollowupQuestionAudio(userInput) {
     };
 
     const questionResult = await createFastJsonResponse(questionPayload);
-    const questionText = extractResponseOutputText(questionResult).trim();
+    const questionText = clampToWordLimit(extractResponseOutputText(questionResult), 12);
     if (!questionText) {
         throw new Error("No follow-up text returned from OpenAI.");
     }
@@ -232,7 +251,6 @@ async function parseAnswer(user_first_input, follow_up_question, userInput) {
         model: FAST_TEXT_MODEL,
         input: [
             { role: "system", content: PARSE_SECOND_COMMAND_PROMPT },
-            { role: "system", content: "Return strict JSON only." },
             { role: "user", content: user_first_input },
             { role: "assistant", content: follow_up_question },
             { role: "user", content: userInput }
@@ -240,7 +258,7 @@ async function parseAnswer(user_first_input, follow_up_question, userInput) {
         reasoning: { effort: "minimal" },
         text: {
             verbosity: "low",
-            format: { type: "json_object" }
+            format: COMMAND_JSON_SCHEMA
         }
     };
 
@@ -282,7 +300,7 @@ async function createFastJsonResponse(payload) {
         Authorization: getAuthHeader(),
         "Content-Type": "application/json"
     };
-    const preparedPayload = preparePayloadForJsonMode(payload);
+    const preparedPayload = preparePayloadForStructuredOutput(payload);
 
     // First attempt: latest fast model with low-latency tuning.
     const firstTry = await fetch("https://api.openai.com/v1/responses", {
@@ -360,13 +378,14 @@ async function safeReadBody(response) {
     }
 }
 
-function preparePayloadForJsonMode(payload) {
+function preparePayloadForStructuredOutput(payload) {
     const formatType = payload?.text?.format?.type;
-    if (formatType !== "json_object") {
+    if (formatType !== "json_object" && formatType !== "json_schema") {
         return payload;
     }
 
-    const jsonGuardMessage = { role: "system", content: "Return valid json only." };
+    // Normalize string input to message-array input so we can consistently prepend a JSON guard.
+    const jsonGuardMessage = { role: "system", content: "Return valid JSON only, matching the requested format." };
     const cloned = { ...payload };
 
     if (typeof cloned.input === "string") {
@@ -395,4 +414,11 @@ function preparePayloadForJsonMode(payload) {
     }
 
     return cloned;
+}
+
+function clampToWordLimit(text, maxWords) {
+    const normalized = typeof text === "string" ? text.trim() : "";
+    if (!normalized) return "";
+    const words = normalized.split(/\s+/).filter(Boolean);
+    return words.length <= maxWords ? normalized : words.slice(0, maxWords).join(" ");
 }

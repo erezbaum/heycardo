@@ -1,64 +1,82 @@
 # Cardo Cloud ASR Demo
 
-This project demonstrates a cloud-based Automatic Speech Recognition (ASR) system for Cardo devices. It showcases real-time voice command recognition, follow-up question handling, and command execution using OpenAI's APIs. The demo is designed for browser use and provides a simple UI for interacting with the Cardo voice assistant.
+Browser-based Cardo voice assistant demo using OpenAI Realtime transcription plus Responses API command resolution.
+
+## What Changed Recently
+
+- Command parsing now uses a structured command catalog (`COMMAND_CATALOG`) in `src/prompt.js`.
+- Command extraction now enforces strict structured output (`json_schema`) with an allowlist from `ALLOWED_COMMANDS`.
+- Fast text model flow now uses:
+  - primary: `gpt-5-nano`
+  - fallback: `gpt-4.1-nano`
+- Responses API calls include retry logic with progressively relaxed payloads for compatibility.
+- Follow-up clarification questions are constrained to short text and converted to speech with `gpt-4o-mini-tts`.
+- Runtime diagnostics include optional in-page logs with the `?log` URL parameter.
 
 ## Project Structure
 
-```
-hey1/
+```text
+heycardo/
 ├── index.html
 ├── resources/
-│   └── cardo_logo.avif
-├── src/
-│   ├── main.js
-│   ├── openai.js
-│   ├── prompt.js
-│   ├── utils.js
-│   └── drafts.js
-├── .gitignore
+│   ├── cardo_logo.avif
+│   ├── check.png
+│   ├── mic.png
+│   ├── mute.png
+│   ├── ok.wav
+│   ├── power_off.png
+│   └── try-again.wav
+└── src/
+    ├── drafts.js
+    ├── main.js
+    ├── openai.js
+    ├── prompt.js
+    └── utils.js
 ```
 
-### File Descriptions
+## Runtime Flow
 
-- **index.html**  
-  The main HTML file. Sets up the UI, loads scripts, and manages DOM elements for the demo.
+1. Browser captures mic audio and opens a Realtime transcription session.
+2. Partial/final transcripts are streamed via WebRTC data channel events.
+3. Inputs are only treated as commands when a wake greeting is detected (`hey|hi|hello + cardo/kardo/caldo`).
+4. First-pass command parse runs against the allowed command schema.
+5. If unresolved, the app generates a short follow-up question and plays TTS audio.
+6. The follow-up answer is parsed again against the same command schema.
+7. On success, the command is shown in the UI and confirmation audio is played.
 
-- **resources/cardo_logo.avif**  
-  Cardo logo image displayed in the UI.
+## URL Parameters
 
-- **src/main.js**  
-  Main application logic. Manages state, handles transcription events, processes user input, and updates the UI.
+- Required: `key`
+  - Example: `http://localhost:8080/?key=42`
+  - Used to deobfuscate the embedded API token at runtime.
+- Optional: `log`
+  - Example: `http://localhost:8080/?key=42&log=1`
+  - Shows the in-page debug log panel.
 
-- **src/openai.js**  
-  Handles integration with OpenAI APIs for transcription, command parsing, and generating follow-up questions (text and audio).
+## Local Run
 
-- **src/prompt.js**  
-  Contains prompt templates and command lists used for instructing the OpenAI models.
+Serve the directory over HTTP (do not use `file://` for mic/WebRTC):
 
-- **src/utils.js**  
-  Utility functions for audio feedback (beeps) and simple timing utilities.
+```bash
+cd /Users/erez/Source/heycardo
+python3 -m http.server 8080
+```
 
-- **src/drafts.js**  
-  Experimental or alternative implementations, such as a two-step follow-up question and TTS audio generation.
+Then open:
 
-- **.gitignore**  
-  Standard ignore file for logs, build artifacts, and editor files.
+- `http://localhost:8080/?key=42`
+- or `http://localhost:8080/?key=42&log=1` for logs
 
-## How It Works
+## Key Files
 
-1. The app listens for a greeting ("Hey Cardo", etc.).
-2. When a greeting is detected, it listens for a command.
-3. If the command is recognized, it executes and confirms.
-4. If unclear, it asks a follow-up question (with audio).
-5. The user's answer is parsed to extract the intended command.
-
-## Requirements
-
-- Modern web browser with microphone access.
-- OpenAI API access (API keys are split in the code for demo purposes).
+- `index.html`: UI, app bootstrap, logging panel, audio unlock behavior, key validation.
+- `src/main.js`: state machine for wake word detection, command/follow-up flow, session lifecycle.
+- `src/openai.js`: OpenAI API integration (Realtime session setup, Responses API command parsing, TTS follow-ups).
+- `src/prompt.js`: command catalog and prompt templates for first parse, follow-up generation, and second parse.
+- `src/utils.js`: beeps/timers plus token obfuscation helpers.
 
 ## Notes
 
-- This is a demo and not intended for production use.
-- All processing is done client-side except for API calls to OpenAI.
-
+- Demo-only implementation with client-side API token reconstruction.
+- Not production-safe for secrets.
+- Requires a modern browser with microphone permission.
